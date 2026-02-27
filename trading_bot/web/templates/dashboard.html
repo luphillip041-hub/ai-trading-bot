@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% set active_page = "dashboard" %}
+
+{% block title %}Scanner - AI Trading Bot{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Market Scanner</h1>
+        <p class="mt-1 text-sm text-gray-500">Scan stocks for algorithmic trading signals using MA Crossover, RSI, MACD, and Bollinger Bands.</p>
+    </div>
+
+    <!-- Controls -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+        <div class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-64">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tickers</label>
+                <input id="tickers" type="text" value="AAPL,MSFT,GOOGL,AMZN,TSLA,META,NVDA,SPY,QQQ,AMD"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                    placeholder="AAPL,MSFT,GOOGL...">
+            </div>
+            <div class="w-32">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                <select id="period" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    <option value="1mo">1 Month</option>
+                    <option value="3mo">3 Months</option>
+                    <option value="6mo" selected>6 Months</option>
+                    <option value="1y">1 Year</option>
+                    <option value="2y">2 Years</option>
+                </select>
+            </div>
+            <div class="w-36">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Min Consensus</label>
+                <select id="consensus" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    <option value="1">1 Algorithm</option>
+                    <option value="2" selected>2 Algorithms</option>
+                    <option value="3">3 Algorithms</option>
+                    <option value="4">4 Algorithms</option>
+                </select>
+            </div>
+            <button id="scanBtn" onclick="runScan()"
+                class="px-6 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors shadow-sm">
+                Scan Market
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="hidden text-center py-12">
+        <div class="loader mx-auto mb-3"></div>
+        <p class="text-sm text-gray-500">Fetching data and analyzing signals...</p>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="hidden space-y-6 fade-in">
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="summaryCards"></div>
+
+        <!-- Action Signals Table -->
+        <div id="actionSection" class="hidden">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Trade Signals</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ticker</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Signal</th>
+                                <th class="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
+                                <th class="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Strength</th>
+                                <th class="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Buy</th>
+                                <th class="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Sell</th>
+                                <th class="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Hold</th>
+                            </tr>
+                        </thead>
+                        <tbody id="actionTable" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signal Details -->
+        <div id="detailsSection" class="hidden space-y-3"></div>
+
+        <!-- Hold Signals -->
+        <div id="holdSection" class="hidden">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Holds (No Action)</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ticker</th>
+                                <th class="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
+                                <th class="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Buy Votes</th>
+                                <th class="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Sell Votes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdTable" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function runScan() {
+    const tickers = document.getElementById('tickers').value;
+    const period = document.getElementById('period').value;
+    const consensus = document.getElementById('consensus').value;
+
+    document.getElementById('loading').classList.remove('hidden');
+    document.getElementById('results').classList.add('hidden');
+    document.getElementById('scanBtn').disabled = true;
+    document.getElementById('scanBtn').textContent = 'Scanning...';
+
+    try {
+        const res = await fetch(`/api/scan?tickers=${encodeURIComponent(tickers)}&period=${period}&consensus=${consensus}`);
+        const data = await res.json();
+        renderResults(data.signals);
+    } catch (err) {
+        alert('Error scanning market: ' + err.message);
+    } finally {
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('scanBtn').disabled = false;
+        document.getElementById('scanBtn').textContent = 'Scan Market';
+    }
+}
+
+function renderResults(signals) {
+    const actionSignals = signals.filter(s => s.signal !== 'HOLD');
+    const holdSignals = signals.filter(s => s.signal === 'HOLD');
+
+    // Summary cards
+    const buyCount = signals.filter(s => s.signal === 'BUY').length;
+    const sellCount = signals.filter(s => s.signal === 'SELL').length;
+    document.getElementById('summaryCards').innerHTML = `
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="text-sm text-gray-500">Total Scanned</div>
+            <div class="text-3xl font-bold text-gray-900 mt-1">${signals.length}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-green-200 p-5">
+            <div class="text-sm text-green-600">Buy Signals</div>
+            <div class="text-3xl font-bold text-green-600 mt-1">${buyCount}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-red-200 p-5">
+            <div class="text-sm text-red-600">Sell Signals</div>
+            <div class="text-3xl font-bold text-red-600 mt-1">${sellCount}</div>
+        </div>
+    `;
+
+    // Action signals table
+    const actionSection = document.getElementById('actionSection');
+    const actionTable = document.getElementById('actionTable');
+    if (actionSignals.length > 0) {
+        actionSection.classList.remove('hidden');
+        actionTable.innerHTML = actionSignals.map(s => `
+            <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-5 py-3">
+                    <span class="font-semibold text-gray-900">${s.ticker}</span>
+                </td>
+                <td class="px-5 py-3">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold signal-${s.signal.toLowerCase()}">
+                        ${s.signal}
+                    </span>
+                </td>
+                <td class="px-5 py-3 text-right font-mono text-sm">$${s.price.toFixed(2)}</td>
+                <td class="px-5 py-3 text-right">
+                    <div class="flex items-center justify-end gap-2">
+                        <div class="w-16 bg-gray-200 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full ${s.signal === 'BUY' ? 'bg-green-500' : 'bg-red-500'}"
+                                style="width: ${Math.round(s.avg_strength * 100)}%"></div>
+                        </div>
+                        <span class="text-xs text-gray-500 w-10 text-right">${(s.avg_strength * 100).toFixed(0)}%</span>
+                    </div>
+                </td>
+                <td class="px-5 py-3 text-center text-sm text-green-600 font-medium">${s.buy_count}</td>
+                <td class="px-5 py-3 text-center text-sm text-red-600 font-medium">${s.sell_count}</td>
+                <td class="px-5 py-3 text-center text-sm text-yellow-600 font-medium">${s.hold_count}</td>
+            </tr>
+        `).join('');
+    } else {
+        actionSection.classList.add('hidden');
+    }
+
+    // Signal details
+    const detailsSection = document.getElementById('detailsSection');
+    if (actionSignals.length > 0) {
+        detailsSection.classList.remove('hidden');
+        detailsSection.innerHTML = '<h2 class="text-lg font-semibold text-gray-900">Signal Details</h2>' +
+            actionSignals.map(s => {
+                const borderColor = s.signal === 'BUY' ? 'border-green-300' : 'border-red-300';
+                const headerBg = s.signal === 'BUY' ? 'bg-green-50' : 'bg-red-50';
+                const headerText = s.signal === 'BUY' ? 'text-green-800' : 'text-red-800';
+                return `
+                <div class="bg-white rounded-xl shadow-sm border ${borderColor} overflow-hidden">
+                    <div class="${headerBg} px-5 py-3">
+                        <span class="font-semibold ${headerText}">${s.ticker} - ${s.signal}</span>
+                        <span class="text-sm ${headerText} ml-2">$${s.price.toFixed(2)}</span>
+                    </div>
+                    <div class="px-5 py-3 space-y-1">
+                        ${s.reasons.map(r => `<div class="text-sm text-gray-600">${r}</div>`).join('')}
+                    </div>
+                </div>`;
+            }).join('');
+    } else {
+        detailsSection.classList.add('hidden');
+    }
+
+    // Hold signals
+    const holdSection = document.getElementById('holdSection');
+    const holdTable = document.getElementById('holdTable');
+    if (holdSignals.length > 0) {
+        holdSection.classList.remove('hidden');
+        holdTable.innerHTML = holdSignals.map(s => `
+            <tr class="hover:bg-gray-50">
+                <td class="px-5 py-3 font-semibold text-gray-900">${s.ticker}</td>
+                <td class="px-5 py-3 text-right font-mono text-sm">$${s.price.toFixed(2)}</td>
+                <td class="px-5 py-3 text-center text-sm text-green-600">${s.buy_count}</td>
+                <td class="px-5 py-3 text-center text-sm text-red-600">${s.sell_count}</td>
+            </tr>
+        `).join('');
+    } else {
+        holdSection.classList.add('hidden');
+    }
+
+    document.getElementById('results').classList.remove('hidden');
+}
+</script>
+{% endblock %}
