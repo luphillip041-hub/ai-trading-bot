@@ -357,6 +357,17 @@ def cmd_portfolio(args: argparse.Namespace) -> None:
         console.print(pos_table)
 
 
+def cmd_web(args: argparse.Namespace) -> None:
+    """Launch the web dashboard."""
+    from trading_bot.web.app import run_server
+
+    console.print(
+        f"[bold green]Starting web dashboard at http://{args.host}:{args.port}[/bold green]"
+    )
+    console.print("[dim]Press Ctrl+C to stop[/dim]")
+    run_server(host=args.host, port=args.port)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
     parser = argparse.ArgumentParser(
@@ -395,6 +406,15 @@ def build_parser() -> argparse.ArgumentParser:
     port_parser.add_argument("tickers", type=str, help="Comma-separated list of tickers")
     port_parser.add_argument("--capital", type=float, help="Initial capital (default: 100000)")
 
+    # Web command
+    web_parser = subparsers.add_parser("web", help="Launch the web dashboard")
+    web_parser.add_argument(
+        "--host", type=str, default="0.0.0.0", help="Host to bind (default: 0.0.0.0)"
+    )
+    web_parser.add_argument(
+        "--port", type=int, default=8000, help="Port to bind (default: 8000)"
+    )
+
     return parser
 
 
@@ -410,6 +430,7 @@ def main() -> None:
         "backtest": cmd_backtest,
         "info": cmd_info,
         "portfolio": cmd_portfolio,
+        "web": cmd_web,
     }
 
     if args.command is None:

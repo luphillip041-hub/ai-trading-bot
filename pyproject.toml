@@ -17,6 +17,9 @@ dependencies = [
     "rich>=13.0.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "jinja2>=3.1.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +31,7 @@ dev = [
 
 [project.scripts]
 trading-bot = "trading_bot.cli:main"
+trading-bot-web = "trading_bot.web.app:run_server"
 
 [tool.ruff]
 target-version = "py310"
